@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi Modul Ajar - APMA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        heading: ['"Plus Jakarta Sans"', 'sans-serif'],
+                    }
+                }
+            }
+        };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Lora:ital,wght@0,400;0,700;1,400&family=Courier+Prime&display=swap" rel="stylesheet">
+    
+    <!-- Libraries for Exporting & Rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://unpkg.com/html-docx-js@0.3.1/dist/html-docx.js"></script>
+    
+    <!-- Libraries for File Parsing (PDF & DOCX) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+
+    <script>
+        // Polyfill process for browser compatibility with Node SDKs (like @google/genai)
+        window.process = {
+            env: {
+                NODE_ENV: 'development'
+            },
+            version: '',
+            versions: {},
+            platform: 'browser',
+            nextTick: function(cb) { setTimeout(cb, 0); }
+        };
+    </script>
+
+    <script>
+        // Init PDF.js Worker
+        // We defer this check until the library is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.pdfjsLib) {
+                window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            }
+        });
+    </script>
+    
+    <!-- MathJax Configuration & Library -->
+    <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      svg: {
+        fontCache: 'global'
+      }
+    };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+        }
+        .loader {
+            border: 4px solid #f3f4f6; border-top: 4px solid #16a34a;
+            border-radius: 50%; width: 50px; height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* Updated prose-custom for better contrast - dynamically styled */
+        .prose-custom { color: #1e293b; line-height: 1.6; }
+        .prose-custom h1, .prose-custom h2 { color: var(--primary-color, #0f172a); }
+        .prose-custom h3 { 
+            font-size: 1.2rem; 
+            font-weight: bold; 
+            margin-top: 2rem; 
+            margin-bottom: 1rem; 
+            border-bottom: 2px solid var(--primary-color, #10b981); 
+            padding-bottom: 0.5em; 
+            color: var(--primary-color, #059669); 
+        }
+        .prose-custom h4 { font-size: 1.1rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.75rem; color: var(--secondary-color, #0d9488); }
+        
+        .prose-custom table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.95rem; }
+        .prose-custom th, .prose-custom td { border: 1px solid #cbd5e1; padding: 0.75rem; text-align: left; vertical-align: top; }
+        .prose-custom th { background-color: var(--primary-color, #059669); font-weight: bold; color: #ffffff !important; }
+        .prose-custom td:first-child { font-weight: bold; background-color: #f8fafc; }
+        
+        .prose-custom ul, .prose-custom ol { padding-left: 1.5rem; margin-top: 0.5rem; }
+        .prose-custom li { margin-bottom: 0.5rem; }
+        .prose-custom p { margin-top: 0.5rem; margin-bottom: 0.5rem; }
+        
+        mjx-container { overflow-x: auto; max-width: 100%; }
+
+        /* File Upload Styling */
+        .file-upload-zone { border: 2px dashed #cbd5e1; transition: all 0.3s ease; }
+        .file-upload-zone:hover { border-color: #16a34a; background-color: #f0fdf4; }
+        
+        /* Validation Bubble Styling */
+        .validation-bubble {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-bottom: 8px;
+            background-color: #ef4444;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            white-space: nowrap;
+            z-index: 10;
+        }
+        .validation-bubble::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 5px;
+            border-style: solid;
+            border-color: #ef4444 transparent transparent transparent;
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.41.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
