@@ -1,17 +1,18 @@
 import { GoogleGenAI } from '@google/genai';
 
-// Retrieve Gemini API Key from localStorage or environment variables
+// Kunci API Gemini diambil dari pengaturan di aplikasi (localStorage peramban).
+// Saat `npm run dev`, VITE_GEMINI_API_KEY di .env.local ikut dibaca sebagai cadangan.
+// Build produksi tidak pernah membaca .env agar kunci tidak tertanam di berkas JS publik.
 export const getApiKey = (): string => {
   if (typeof window !== 'undefined') {
     const localKey = localStorage.getItem('GEMINI_API_KEY');
     if (localKey) return localKey;
   }
-  
-  // Try Vite or process env
-  return (import.meta as any).env?.VITE_GEMINI_API_KEY || 
-         (import.meta as any).env?.GEMINI_API_KEY || 
-         (typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : '') || 
-         '';
+
+  if (import.meta.env.DEV) {
+    return import.meta.env.VITE_GEMINI_API_KEY || '';
+  }
+  return '';
 };
 
 // Main generator for full Modul Ajar
