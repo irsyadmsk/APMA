@@ -469,7 +469,7 @@ Tugas Anda adalah menulis konten modul ajar dengan membaginya ke dalam blok-blok
 Daftar Blok yang HARUS Anda hasilkan (JANGAN ADA YANG TERLEWAT!):
 
 === START_BLOCK: Identitas & Informasi Umum [Informasi Umum] ===
-Buatlah **tabel Markdown formal** dengan kolom `| Komponen | Keterangan |` untuk menyajikan rincian berikut:
+Buatlah **tabel Markdown formal** dengan kolom \`| Komponen | Keterangan |\` untuk menyajikan rincian berikut:
 - **Nama Guru Penyusun**: ${formData.namaGuru}
 - **Institusi/Sekolah**: ${formData.institusi}
 - **Tahun Ajaran**: ${formData.tahun || '2025/2026'}

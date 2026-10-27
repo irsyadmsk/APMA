@@ -1,4 +1,7 @@
+import lessonLogo from './favicon.svg';
+import {useLessonInterface,chooseLanguage,type InterfaceLanguage} from './services/interface';
 import React, { useState, useEffect, useRef } from 'react';
+import { lessonMinutes } from './services/lesson-template';
 import { 
     AppFormData, 
     KBC_DATA, 
@@ -12,7 +15,6 @@ import {
 } from './types';
 import { 
     handleFileUpload, 
-    assemblePrompt, 
     exportToDOCX, 
     exportToHTML, 
     exportToMarkdown, 
@@ -25,9 +27,8 @@ import {
 import { 
     generateModulAjar, 
     generatePartialBlock, 
-    analyzeModulAjar,
-    getApiKey
-} from './services/geminiService';
+    analyzeModulAjar
+} from './services/lessonService';
 
 // Standalone Document Print Helper
 const printDocument = (blocks: ModuleBlock[], design: DocumentDesign, schoolProfile?: SchoolProfile, formData?: AppFormData) => {
@@ -98,7 +99,7 @@ const printDocument = (blocks: ModuleBlock[], design: DocumentDesign, schoolProf
                         </div>
                         <div>
                             <strong>Tahun Ajaran:</strong><br/>
-                            ${formData?.tahun || '2025/2026'}
+                            ${formData?.tahun || ''}
                         </div>
                     </div>
                 </div>
@@ -338,24 +339,28 @@ const InputWrapper: React.FC<{
     showError: boolean;
     className?: string;
 }> = ({ label, id, children, errorMsg = "Harap isi kolom ini", showError, className = "" }) => {
+    const {ui}=useLessonInterface();
     return (
         <div className={`relative ${className}`}>
             {label && <label htmlFor={id} className="block text-[10px] font-bold text-slate-600 dark:text-slate-350 uppercase tracking-wider mb-1.5">{label}</label>}
             {children}
             {showError && (
-                <div className="validation-bubble" style={{ display: 'block' }}>{errorMsg}</div>
+                <div className="validation-bubble" style={{ display: 'block' }}>{ui(errorMsg)}</div>
             )}
         </div>
     );
 };
 
 export default function App() {
+    const {language,ui}=useLessonInterface();
+    useEffect(()=>{document.documentElement.lang=language;document.documentElement.dir=language==='ar'?'rtl':'ltr';},[language]);
     // Basic Form States
     const [step, setStep] = useState(1);
     const [formData, setFormData] = useState<AppFormData>({
         namaGuru: '',
         institusi: '',
-        tahun: '2025/2026',
+        tahun: '',
+        kurikulum: 'kumer',
         jenjang: '',
         kelas: '',
         fase: '',
@@ -371,7 +376,7 @@ export default function App() {
         metode: 'Diskusi, Tanya Jawab, Penugasan Mandiri',
         strategi: 'Pembelajaran Berdiferensiasi',
         media: 'Slide PPT, Gambar Konseptual, Quizizz',
-        sumberBelajar: 'Buku Guru Kurikulum Merdeka Kemendikdasmen',
+        sumberBelajar: '',
         karakteristikMurid: 'Siswa reguler dengan beragam gaya belajar',
         kesiapanBelajar: 'Siswa secara umum telah menguasai prasyarat dasar materi ini',
         saranaPrasarana: 'Proyektor, Laptop, Akses Internet, Papan Tulis',
@@ -401,7 +406,7 @@ export default function App() {
         fontFamily: 'sans-serif',
         marginSize: 'normal',
         headerText: 'DOKUMEN MODUL AJAR',
-        footerText: 'Dibuat Otomatis dengan APMA',
+        footerText: 'Created with Irsyads LessonCraft',
         showCover: true,
         useIcons: true,
         showPageNumbers: true
@@ -440,9 +445,6 @@ export default function App() {
 
     const progressIntervalRef = useRef<any>(null);
 
-    const [hasApiKey, setHasApiKey] = useState(true);
-    const [customApiKey, setCustomApiKey] = useState('');
-    const [showApiKeyInput, setShowApiKeyInput] = useState(false);
 
     // Dark Mode States
     const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -462,11 +464,6 @@ export default function App() {
         localStorage.setItem('APMA_DARK_MODE', String(darkMode));
     }, [darkMode]);
 
-    useEffect(() => {
-        const key = getApiKey();
-        setHasApiKey(!!key);
-        setCustomApiKey(localStorage.getItem('GEMINI_API_KEY') || '');
-    }, [step]);
 
     // Initialize localStorage profile on mount
     useEffect(() => {
@@ -570,7 +567,7 @@ export default function App() {
         if (validateStep(step)) {
             if (step === 2) {
                 // Calculate durations for meetings
-                const menitPerPertemuan = parseInt(formData.lamaWaktu.replace(/\D/g,''), 10) || 0;
+                const menitPerPertemuan = lessonMinutes(formData.lamaWaktu);
                 const totalMenit = formData.jumlahPertemuan * menitPerPertemuan;
                 const alokasi = `${formData.jumlahPertemuan} pertemuan (total ${totalMenit} menit)`;
                 
@@ -650,12 +647,7 @@ export default function App() {
         progressIntervalRef.current = interval;
 
         try {
-            const prompt = assemblePrompt({
-                ...formData,
-                schoolProfile,
-                documentDesign
-            });
-            const text = await generateModulAjar(prompt, formData.uploadedImage);
+            const text = await generateModulAjar('local-template', formData.uploadedImage, formData);
             
             clearInterval(interval);
             setProgress(100);
@@ -886,9 +878,10 @@ export default function App() {
         setStep(1);
         setBlocks([]);
         setFormData({
+            kurikulum: 'kumer',
             namaGuru: schoolProfile.namaGuru || '',
             institusi: schoolProfile.namaSekolah || '',
-            tahun: '2025/2026',
+            tahun: '',
             jenjang: '',
             kelas: '',
             fase: '',
@@ -904,7 +897,7 @@ export default function App() {
             metode: 'Diskusi, Tanya Jawab, Penugasan Mandiri',
             strategi: 'Pembelajaran Berdiferensiasi',
             media: 'Slide PPT, Gambar Konseptual, Quizizz',
-            sumberBelajar: 'Buku Guru Kurikulum Merdeka Kemendikdasmen',
+            sumberBelajar: '',
             karakteristikMurid: 'Siswa reguler dengan beragam gaya belajar',
             kesiapanBelajar: 'Siswa secara umum telah menguasai prasyarat dasar materi ini',
             saranaPrasarana: 'Proyektor, Laptop, Akses Internet, Papan Tulis',
@@ -956,34 +949,32 @@ export default function App() {
 
     const renderStep1 = () => (
         <div className="form-container visible-form animate-fade-in-right">
-            <h2 className="text-xl sm:text-2xl font-heading font-extrabold text-emerald-700 dark:text-emerald-400 mb-6">Langkah 1: Identitas & Informasi Dasar</h2>
+            <h2 className="text-xl sm:text-2xl font-heading font-extrabold text-emerald-700 dark:text-emerald-400 mb-6">{ui("Langkah 1: Identitas & Informasi Dasar")}</h2>
             
             <h3 className="text-sm font-heading font-bold text-slate-800 dark:text-slate-200 mb-3.5 flex items-center gap-2">
-                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">A.</span>
-                Informasi Pendidik & Institusi
-            </h3>
+                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">A.</span>{ui("Informasi Pendidik & Institusi")}</h3>
             <div className="premium-card mb-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                    <InputWrapper id="namaGuru" label="Nama Guru Penyusun" showError={errors.namaGuru}>
+                    <InputWrapper id="namaGuru" label={ui("Nama Guru Penyusun")} showError={errors.namaGuru}>
                         <input 
                             type="text" id="namaGuru" 
                             className={`w-full p-3 rounded-xl border form-input-premium outline-none text-sm ${errors.namaGuru ? 'border-red-500 focus:ring-red-500/10' : 'border-slate-250 dark:border-slate-800'}`} 
-                            placeholder="Contoh: Muhammad Irsyad Sirojul Khoeir, M.Sos."
+                            placeholder={ui("Contoh: Muhammad Irsyad Sirojul Khoeir, M.Sos.")}
                             value={formData.namaGuru}
                             onChange={e => updateForm('namaGuru', e.target.value)}
                         />
                     </InputWrapper>
-                    <InputWrapper id="institusi" label="Nama Institusi/Sekolah" showError={errors.institusi}>
+                    <InputWrapper id="institusi" label={ui("Nama Institusi/Sekolah")} showError={errors.institusi}>
                         <input 
                             type="text" id="institusi" 
                             className={`w-full p-3 rounded-xl border form-input-premium outline-none text-sm ${errors.institusi ? 'border-red-500 focus:ring-red-500/10' : 'border-slate-250 dark:border-slate-800'}`} 
-                            placeholder="Contoh: MA Insan Cendekia Nusantara"
+                            placeholder={ui("Contoh: MA Insan Cendekia Nusantara")}
                             value={formData.institusi}
                             onChange={e => updateForm('institusi', e.target.value)}
                         />
                     </InputWrapper>
                     <div className="grid grid-cols-2 gap-3">
-                        <InputWrapper id="tahun" label="Tahun Ajaran" showError={false}>
+                        <InputWrapper id="tahun" label={ui("Tahun Ajaran")} showError={false}>
                             <input 
                                 type="text" id="tahun" 
                                 className="w-full p-3 rounded-xl border form-input-premium outline-none text-sm border-slate-250 dark:border-slate-800" 
@@ -991,15 +982,15 @@ export default function App() {
                                 onChange={e => updateForm('tahun', e.target.value)}
                             />
                         </InputWrapper>
-                        <InputWrapper id="semester" label="Semester" showError={false}>
+                        <InputWrapper id="semester" label={ui("Semester")} showError={false}>
                             <select 
                                 id="semester" 
                                 className="w-full p-3 rounded-xl border form-input-premium outline-none text-sm border-slate-250 dark:border-slate-800"
                                 value={formData.semester}
                                 onChange={e => updateForm('semester', e.target.value)}
                             >
-                                <option>Ganjil</option>
-                                <option>Genap</option>
+                                <option value="Ganjil">{ui("Ganjil")}</option>
+                                <option value="Genap">{ui("Genap")}</option>
                             </select>
                         </InputWrapper>
                     </div>
@@ -1007,12 +998,10 @@ export default function App() {
             </div>
             
             <h3 className="text-sm font-heading font-bold text-slate-800 dark:text-slate-200 mb-3.5 flex items-center gap-2">
-                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">B.</span>
-                Landasan Kurikulum & Kelas
-            </h3>
+                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">B.</span>{ui("Landasan Kurikulum & Kelas")}</h3>
             <div className="premium-card mb-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <InputWrapper id="kurikulum" label="Landasan Regulasi Kurikulum" showError={errors.kurikulum}>
+                    <InputWrapper id="kurikulum" label={ui("Landasan Regulasi Kurikulum")} showError={errors.kurikulum}>
                         <select 
                             id="kurikulum" 
                             className={`w-full p-3 rounded-xl border form-input-premium outline-none text-sm ${errors.kurikulum ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'}`}
@@ -1023,17 +1012,17 @@ export default function App() {
                                 updateForm('fase', '');
                             }}
                         >
-                            <option value="" disabled>Pilih Regulasi Kurikulum</option>
-                            <option value="kumer">Kurikulum Merdeka (Nasional)</option>
-                            <option value="kbc">Kurikulum Berbasis Cinta (Kemenag)</option>
-                            <option value="khas">Kurikulum Khas Sekolah/Lokal</option>
-                            <option value="yayasan">Kurikulum Standar Yayasan</option>
+                            <option value="" disabled>{ui("Pilih Regulasi Kurikulum")}</option>
+                            <option value="kumer">{ui("Kurikulum Merdeka (Nasional)")}</option>
+                            <option value="kbc">{ui("Kurikulum Berbasis Cinta (Kemenag)")}</option>
+                            <option value="khas">{ui("Kurikulum Khas Sekolah/Lokal")}</option>
+                            <option value="yayasan">{ui("Kurikulum Standar Yayasan")}</option>
                         </select>
                     </InputWrapper>
 
                     {/* Custom curriculum title if khas/yayasan */}
                     {(formData.kurikulum === 'khas' || formData.kurikulum === 'yayasan') && (
-                        <InputWrapper id="customKurikulumName" label="Nama Kurikulum Khusus" showError={false}>
+                        <InputWrapper id="customKurikulumName" label={ui("Nama Kurikulum Khusus")} showError={false}>
                             <input 
                                 type="text" id="customKurikulumName"
                                 className="w-full p-3 rounded-xl border border-slate-250 dark:border-slate-800 form-input-premium outline-none text-sm"
@@ -1044,7 +1033,7 @@ export default function App() {
                         </InputWrapper>
                     )}
 
-                    <InputWrapper id="jenjang" label="Jenjang Pendidikan" showError={errors.jenjang}>
+                    <InputWrapper id="jenjang" label={ui("Jenjang Pendidikan")} showError={errors.jenjang}>
                         <select 
                             id="jenjang" 
                             className={`w-full p-3 rounded-xl border form-input-premium outline-none text-sm disabled:opacity-50 disabled:cursor-not-allowed ${errors.jenjang ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'}`}
@@ -1055,7 +1044,7 @@ export default function App() {
                             }}
                             disabled={!formData.kurikulum}
                         >
-                            <option value="" disabled>Pilih Jenjang</option>
+                            <option value="" disabled>{ui("Pilih Jenjang")}</option>
                             {formData.kurikulum && (JENJANG_OPTIONS as any)[formData.kurikulum]?.map((opt: string) => (
                                 <option key={opt} value={opt}>{opt}</option>
                             ))}
@@ -1063,7 +1052,7 @@ export default function App() {
                     </InputWrapper>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <InputWrapper id="fase" label="Fase" showError={errors.fase}>
+                        <InputWrapper id="fase" label={ui("Fase")} showError={errors.fase}>
                             <select 
                                 id="fase" 
                                 className={`w-full p-3 rounded-xl border form-input-premium outline-none text-sm disabled:opacity-50 disabled:cursor-not-allowed ${errors.fase ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'}`}
@@ -1071,29 +1060,29 @@ export default function App() {
                                 onChange={e => updateForm('fase', e.target.value)}
                                 disabled={!formData.jenjang}
                             >
-                                <option value="" disabled>Pilih Fase</option>
+                                <option value="" disabled>{ui("Pilih Fase")}</option>
                                 {formData.jenjang && (FASE_MAPPING[formData.jenjang] || FASE_MAPPING[formData.jenjang.replace(/-/g,'')])?.map((f: string) => (
                                     <option key={f} value={f}>{FASE_DESCRIPTIONS[f] || f}</option>
                                 ))}
                             </select>
                         </InputWrapper>
 
-                        <InputWrapper id="kelas" label="Kelas" showError={errors.kelas}>
+                        <InputWrapper id="kelas" label={ui("Kelas")} showError={errors.kelas}>
                             <input 
                                 type="text" id="kelas" 
                                 className={`w-full p-3 rounded-xl border form-input-premium outline-none text-sm ${errors.kelas ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'}`} 
-                                placeholder="Contoh: VII atau 10"
+                                placeholder={ui("Contoh: VII atau 10")}
                                 value={formData.kelas}
                                 onChange={e => updateForm('kelas', e.target.value)}
                             />
                         </InputWrapper>
                     </div>
 
-                    <InputWrapper id="mapel" label="Mata Pelajaran" showError={errors.mapel}>
+                    <InputWrapper id="mapel" label={ui("Mata Pelajaran")} showError={errors.mapel}>
                         <input 
                             type="text" id="mapel" 
                             className={`w-full p-3 rounded-xl border form-input-premium outline-none text-sm ${errors.mapel ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'}`} 
-                            placeholder="Contoh: PAI / Bahasa Arab / IPA"
+                            placeholder={ui("Contoh: PAI / Bahasa Arab / IPA")}
                             value={formData.mapel}
                             onChange={e => updateForm('mapel', e.target.value)}
                         />
@@ -1102,26 +1091,24 @@ export default function App() {
             </div>
 
             <h3 className="text-sm font-heading font-bold text-slate-800 dark:text-slate-200 mb-3.5 flex items-center gap-2">
-                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">C.</span>
-                Capaian & Elemen Kurikulum
-            </h3>
+                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">C.</span>{ui("Capaian & Elemen Kurikulum")}</h3>
             <div className="premium-card">
                 <div className="grid grid-cols-1 gap-5">
-                    <InputWrapper id="elemen" label="Elemen Mapel (Opsional)" showError={false}>
+                    <InputWrapper id="elemen" label={ui("Elemen Mapel (Opsional)")} showError={false}>
                         <input 
                             type="text" id="elemen" 
                             className="w-full p-3 rounded-xl border border-slate-250 dark:border-slate-800 form-input-premium outline-none text-sm" 
-                            placeholder="Contoh: Al-Qur'an dan Hadis / Pengukuran Aljabar"
+                            placeholder={ui("Contoh: Al-Qur'an dan Hadis / Pengukuran Aljabar")}
                             value={formData.elemen}
                             onChange={e => updateForm('elemen', e.target.value)}
                         />
                     </InputWrapper>
-                    <InputWrapper id="cp" label="Deskripsi Capaian Pembelajaran (CP) Resmi" showError={false}>
+                    <InputWrapper id="cp" label={ui("Deskripsi Capaian Pembelajaran (CP) Resmi")} showError={false}>
                         <textarea 
                             id="cp" 
                             rows={3}
                             className="w-full p-3 rounded-xl border border-slate-250 dark:border-slate-800 form-input-premium outline-none text-sm resize-y" 
-                            placeholder="Tempel deskripsi Capaian Pembelajaran (CP) dari regulasi BSKAP terbaru di sini untuk keselarasan modul yang tinggi."
+                            placeholder={ui("Tempel deskripsi Capaian Pembelajaran (CP) dari regulasi BSKAP terbaru di sini untuk keselarasan modul yang tinggi.")}
                             value={formData.cp}
                             onChange={e => updateForm('cp', e.target.value)}
                         />
@@ -1133,27 +1120,25 @@ export default function App() {
 
     const renderStep2 = () => (
         <div className="form-container visible-form animate-fade-in-right">
-            <h2 className="text-xl sm:text-2xl font-heading font-extrabold text-emerald-700 dark:text-emerald-400 mb-6">Langkah 2: Detail Pembelajaran & Aspek Diferensiasi</h2>
+            <h2 className="text-xl sm:text-2xl font-heading font-extrabold text-emerald-700 dark:text-emerald-400 mb-6">{ui("Langkah 2: Detail Pembelajaran & Aspek Diferensiasi")}</h2>
             
             <h3 className="text-sm font-heading font-bold text-slate-800 dark:text-slate-200 mb-3.5 flex items-center gap-2">
-                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">A.</span>
-                Alokasi & Model
-            </h3>
+                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">A.</span>{ui("Alokasi & Model")}</h3>
             <div className="premium-card mb-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="md:col-span-2">
-                        <InputWrapper id="materi" label="Materi Pokok / Judul Pembelajaran" showError={errors.materi}>
+                        <InputWrapper id="materi" label={ui("Materi Pokok / Judul Pembelajaran")} showError={errors.materi}>
                             <input 
                                 type="text" id="materi" 
                                 className={`w-full p-3 rounded-xl border form-input-premium outline-none text-sm ${errors.materi ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'}`} 
-                                placeholder="Contoh: Struktur Sel Hewan dan Tumbuhan"
+                                placeholder={ui("Contoh: Struktur Sel Hewan dan Tumbuhan")}
                                 value={formData.materi}
                                 onChange={e => updateForm('materi', e.target.value)}
                             />
                         </InputWrapper>
                     </div>
                     
-                    <InputWrapper id="jumlahPertemuan" label="Jumlah Sesi Pertemuan" showError={errors.jumlahPertemuan}>
+                    <InputWrapper id="jumlahPertemuan" label={ui("Jumlah Sesi Pertemuan")} showError={errors.jumlahPertemuan}>
                         <select 
                             id="jumlahPertemuan" 
                             className={`w-full p-3 rounded-xl border form-input-premium outline-none text-sm ${errors.jumlahPertemuan ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'}`}
@@ -1161,29 +1146,29 @@ export default function App() {
                             onChange={e => updateForm('jumlahPertemuan', parseInt(e.target.value))}
                         >
                             {Array.from({length: 10}, (_, i) => i + 1).map(n => (
-                                <option key={n} value={n}>{n} Sesi Pertemuan</option>
+                                <option key={n} value={n}>{n}{ui("Sesi Pertemuan")}</option>
                             ))}
                         </select>
                     </InputWrapper>
 
-                    <InputWrapper id="lamaWaktu" label="Durasi per Pertemuan" showError={errors.lamaWaktu}>
+                    <InputWrapper id="lamaWaktu" label={ui("Durasi per Pertemuan")} showError={errors.lamaWaktu}>
                         <input 
                             type="text" id="lamaWaktu" 
                             className={`w-full p-3 rounded-xl border form-input-premium outline-none text-sm ${errors.lamaWaktu ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'}`} 
-                            placeholder="Contoh: 2 x 40 menit"
+                            placeholder={ui("Contoh: 2 x 40 menit")}
                             value={formData.lamaWaktu}
                             onChange={e => updateForm('lamaWaktu', e.target.value)}
                         />
                     </InputWrapper>
 
-                    <InputWrapper id="model" label="Model Pembelajaran" showError={errors.model}>
+                    <InputWrapper id="model" label={ui("Model Pembelajaran")} showError={errors.model}>
                         <select 
                             id="model" 
                             className={`w-full p-3 rounded-xl border form-input-premium outline-none text-sm ${errors.model ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'}`}
                             value={formData.model}
                             onChange={e => updateForm('model', e.target.value)}
                         >
-                            <option value="" disabled>Pilih Model</option>
+                            <option value="" disabled>{ui("Pilih Model")}</option>
                             <option>Deep Learning (Pembelajaran Mendalam)</option>
                             <option>Project Based Learning (PjBL)</option>
                             <option>Problem Based Learning (PBL)</option>
@@ -1196,7 +1181,7 @@ export default function App() {
                         </select>
                     </InputWrapper>
 
-                    <InputWrapper id="pendekatan" label="Pendekatan Pembelajaran" showError={false}>
+                    <InputWrapper id="pendekatan" label={ui("Pendekatan Pembelajaran")} showError={false}>
                         <input 
                             type="text" id="pendekatan"
                             className="w-full p-3 rounded-xl border border-slate-250 dark:border-slate-800 form-input-premium outline-none text-sm"
@@ -1208,12 +1193,10 @@ export default function App() {
             </div>
 
             <h3 className="text-sm font-heading font-bold text-slate-800 dark:text-slate-200 mb-3.5 flex items-center gap-2">
-                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">B.</span>
-                Karakteristik & Kesiapan Belajar Murid
-            </h3>
+                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">B.</span>{ui("Karakteristik & Kesiapan Belajar Murid")}</h3>
             <div className="premium-card mb-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <InputWrapper id="karakteristikMurid" label="Karakteristik Murid (Gaya Belajar/Jumlah)" showError={false}>
+                    <InputWrapper id="karakteristikMurid" label={ui("Karakteristik Murid (Gaya Belajar/Jumlah)")} showError={false}>
                         <input 
                             type="text" id="karakteristikMurid"
                             className="w-full p-3 rounded-xl border border-slate-250 dark:border-slate-800 form-input-premium outline-none text-sm"
@@ -1221,7 +1204,7 @@ export default function App() {
                             onChange={e => updateForm('karakteristikMurid', e.target.value)}
                         />
                     </InputWrapper>
-                    <InputWrapper id="kesiapanBelajar" label="Kesiapan Belajar Murid (Prasyarat)" showError={false}>
+                    <InputWrapper id="kesiapanBelajar" label={ui("Kesiapan Belajar Murid (Prasyarat)")} showError={false}>
                         <input 
                             type="text" id="kesiapanBelajar"
                             className="w-full p-3 rounded-xl border border-slate-250 dark:border-slate-800 form-input-premium outline-none text-sm"
@@ -1230,7 +1213,7 @@ export default function App() {
                         />
                     </InputWrapper>
                     <div className="md:col-span-2">
-                        <InputWrapper id="saranaPrasarana" label="Sarana & Prasarana" showError={false}>
+                        <InputWrapper id="saranaPrasarana" label={ui("Sarana & Prasarana")} showError={false}>
                             <textarea 
                                 id="saranaPrasarana"
                                 rows={2}
@@ -1244,12 +1227,10 @@ export default function App() {
             </div>
 
             <h3 className="text-sm font-heading font-bold text-slate-800 dark:text-slate-200 mb-3.5 flex items-center gap-2">
-                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">C.</span>
-                Metode, Media & Sumber Belajar
-            </h3>
+                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">C.</span>{ui("Metode, Media & Sumber Belajar")}</h3>
             <div className="premium-card mb-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
-                    <InputWrapper id="metode" label="Metode Pembelajaran" showError={false}>
+                    <InputWrapper id="metode" label={ui("Metode Pembelajaran")} showError={false}>
                         <input 
                             type="text" id="metode"
                             className="w-full p-3 rounded-xl border border-slate-250 dark:border-slate-800 form-input-premium outline-none text-sm"
@@ -1257,7 +1238,7 @@ export default function App() {
                             onChange={e => updateForm('metode', e.target.value)}
                         />
                     </InputWrapper>
-                    <InputWrapper id="media" label="Media Pembelajaran" showError={false}>
+                    <InputWrapper id="media" label={ui("Media Pembelajaran")} showError={false}>
                         <input 
                             type="text" id="media"
                             className="w-full p-3 rounded-xl border border-slate-250 dark:border-slate-800 form-input-premium outline-none text-sm"
@@ -1265,7 +1246,7 @@ export default function App() {
                             onChange={e => updateForm('media', e.target.value)}
                         />
                     </InputWrapper>
-                    <InputWrapper id="sumberBelajar" label="Sumber Belajar" showError={false}>
+                    <InputWrapper id="sumberBelajar" label={ui("Sumber Belajar")} showError={false}>
                         <input 
                             type="text" id="sumberBelajar"
                             className="w-full p-3 rounded-xl border border-slate-250 dark:border-slate-800 form-input-premium outline-none text-sm"
@@ -1286,7 +1267,7 @@ export default function App() {
                         />
                         <div>
                             <span className="font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm">Punya materi buku paket sendiri? Upload dokumen rujukan di sini</span>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Centang jika Anda ingin melampirkan teks buku rujukan agar materi AI sejalan dengan buku Anda.</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Centang jika Anda ingin melampirkan teks buku rujukan untuk menyertakan teks sebagai bahan rujukan draf lokal.</p>
                         </div>
                     </label>
 
@@ -1347,7 +1328,7 @@ export default function App() {
                 <div id="kbc-fields-wrapper" className="bg-emerald-55/40 dark:bg-emerald-950/20 border border-emerald-150 dark:border-emerald-900/35 p-5 rounded-2xl mb-6 animate-fade-in-up">
                     <h3 className="text-xs font-heading font-bold text-emerald-850 dark:text-emerald-400 uppercase tracking-wider mb-3">Integrasi Khusus Kurikulum Berbasis Cinta</h3>
                     
-                    <InputWrapper id="panca-cinta-wrapper" label="Topik Panca Cinta (Pilih minimal 1)" showError={errors.topikPancaCinta}>
+                    <InputWrapper id="panca-cinta-wrapper" label={ui("Topik Panca Cinta (Pilih minimal 1)")} showError={errors.topikPancaCinta}>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-2">
                             {Object.keys(KBC_DATA).map(key => (
                                 <label key={key} className="flex items-center space-x-2.5 p-2.5 rounded-xl border border-slate-100 dark:border-slate-850 bg-white dark:bg-slate-950 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/30 hover:border-emerald-200 transition-colors shadow-sm cursor-pointer hover-item-animate">
@@ -1364,7 +1345,7 @@ export default function App() {
                     </InputWrapper>
 
                     <div className="mt-4">
-                        <InputWrapper id="materi-insersi-wrapper" label="Materi Insersi Ajaran Cinta (Pilih minimal 1)" showError={errors.materiInsersi}>
+                        <InputWrapper id="materi-insersi-wrapper" label={ui("Materi Insersi Ajaran Cinta (Pilih minimal 1)")} showError={errors.materiInsersi}>
                             <div className="space-y-3 p-4 bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-850 max-h-56 overflow-y-auto custom-scrollbar mt-2">
                                 {formData.topikPancaCinta.length === 0 ? (
                                     <p className="text-xs text-slate-400 dark:text-slate-500 italic">Centang Topik Panca Cinta di atas terlebih dahulu.</p>
@@ -1396,11 +1377,9 @@ export default function App() {
 
             {/* Profil Lulusan */}
             <h3 className="text-sm font-heading font-bold text-slate-800 dark:text-slate-200 mb-3.5 flex items-center gap-2">
-                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">D.</span>
-                Profil Pelajar/Lulusan
-            </h3>
+                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">D.</span>{ui("Profil Pelajar/Lulusan")}</h3>
             <div className="premium-card">
-                <InputWrapper label="Dimensi Profil Lulusan (Sesuai SKL Standar Terbaru)" showError={errors.profilLulusan} errorMsg="Harap pilih minimal 1 Dimensi">
+                <InputWrapper label={ui("Dimensi Profil Lulusan (Sesuai SKL Standar Terbaru)")} showError={errors.profilLulusan} errorMsg={ui("Harap pilih minimal 1 Dimensi")}>
                     <p className="text-[11px] text-slate-400 dark:text-slate-500 mb-3">Dimensi karakter lulusan yang ingin diasah dalam modul ajar ini (pilih minimal 1):</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {[
@@ -1436,13 +1415,11 @@ export default function App() {
                 return (
                     <div className="space-y-4">
                         <div className="flex justify-between items-center">
-                            <h3 className="text-sm font-bold text-slate-800">Daftar Blok Modul</h3>
+                            <h3 className="text-sm font-bold text-slate-800">{ui("Daftar Blok Modul")}</h3>
                             <button 
                                 onClick={addCustomBlock} 
                                 className="text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg border border-emerald-200 font-bold hover:bg-emerald-100 transition-colors"
-                            >
-                                + Tambah Blok
-                            </button>
+                            >{ui("+ Tambah Blok")}</button>
                         </div>
                         <div className="space-y-2 max-h-[55vh] overflow-y-auto custom-scrollbar pr-1">
                             {blocks.map((block, idx) => (
@@ -1469,7 +1446,7 @@ export default function App() {
                                             disabled={idx === 0} 
                                             onClick={(e) => { e.stopPropagation(); moveBlock(idx, 'up'); }}
                                             className="text-slate-400 hover:text-slate-700 disabled:opacity-30 p-0.5 hover:bg-slate-100 rounded"
-                                            title="Pindahkan Ke Atas"
+                                            title={ui("Pindahkan Ke Atas")}
                                         >
                                             ▲
                                         </button>
@@ -1477,14 +1454,14 @@ export default function App() {
                                             disabled={idx === blocks.length - 1} 
                                             onClick={(e) => { e.stopPropagation(); moveBlock(idx, 'down'); }}
                                             className="text-slate-400 hover:text-slate-700 disabled:opacity-30 p-0.5 hover:bg-slate-100 rounded"
-                                            title="Pindahkan Ke Bawah"
+                                            title={ui("Pindahkan Ke Bawah")}
                                         >
                                             ▼
                                         </button>
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); deleteBlock(block.id); }}
                                             className="text-red-400 hover:text-red-600 p-0.5 hover:bg-red-50 rounded"
-                                            title="Hapus Blok"
+                                            title={ui("Hapus Blok")}
                                         >
                                             🗑
                                         </button>
@@ -1515,7 +1492,7 @@ export default function App() {
             case 'copilot':
                 return (
                     <div className="space-y-4">
-                        <h3 className="text-sm font-bold text-slate-800">AI Copilot & Generator Parsial</h3>
+                        <h3 className="text-sm font-bold text-slate-800">{ui("Local section templates")}</h3>
                         <p className="text-[11px] text-slate-500">Buat atau regenerasi komponen tertentu dengan parameter kustom secara cepat.</p>
                         
                         <div className="space-y-3">
@@ -1574,7 +1551,7 @@ export default function App() {
                 return (
                     <div className="space-y-4 max-h-[65vh] overflow-y-auto custom-scrollbar pr-1">
                         <div className="flex justify-between items-center">
-                            <h3 className="text-sm font-bold text-slate-800">Evaluasi & AI Audit</h3>
+                            <h3 className="text-sm font-bold text-slate-800">{ui("Local structure check")}</h3>
                             <button 
                                 disabled={isAnalyzing}
                                 onClick={() => runAudit(blocks)}
@@ -1588,41 +1565,15 @@ export default function App() {
                             <div className="space-y-4">
                                 {/* Score Indicator */}
                                 <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
-                                    <span className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Skor Kualitas Dokumen</span>
-                                    <div className="text-4xl font-extrabold text-emerald-700 mt-1">{analysis.score || 85}/100</div>
+                                    <span className="text-[10px] uppercase tracking-wider font-bold text-slate-500">{ui("Structural completeness")}</span>
+                                    <div className="text-4xl font-extrabold text-emerald-700 mt-1">{analysis.score ?? 0}/100</div>
                                     
-                                    {/* Breakdown */}
-                                    <div className="grid grid-cols-3 gap-x-2 gap-y-3 mt-4 text-[10px] text-slate-650 border-t border-emerald-100/50 pt-3">
-                                        <div>
-                                            <strong>Administrasi:</strong><br/>
-                                            <span className="font-semibold text-emerald-800">{analysis.scores?.administrasi || 85}</span>
-                                        </div>
-                                        <div>
-                                            <strong>Regulasi:</strong><br/>
-                                            <span className="font-semibold text-emerald-800">{analysis.scores?.regulasi || 80}</span>
-                                        </div>
-                                        <div>
-                                            <strong>Pembelajaran:</strong><br/>
-                                            <span className="font-semibold text-emerald-800">{analysis.scores?.pembelajaran || 85}</span>
-                                        </div>
-                                        <div>
-                                            <strong>Asesmen:</strong><br/>
-                                            <span className="font-semibold text-emerald-800">{analysis.scores?.asesmen || 80}</span>
-                                        </div>
-                                        <div>
-                                            <strong>Bahasa:</strong><br/>
-                                            <span className="font-semibold text-emerald-800">{analysis.scores?.bahasa || 90}</span>
-                                        </div>
-                                        <div>
-                                            <strong>Desain:</strong><br/>
-                                            <span className="font-semibold text-emerald-800">{analysis.scores?.desain || 85}</span>
-                                        </div>
-                                    </div>
+                                    <p className="mt-3 text-xs text-slate-600">Presence of sections only. Curriculum, content and assessment have not been validated.</p>
                                 </div>
 
                                 {/* Checklist kelengkapan */}
                                 <div className="p-4 bg-white rounded-2xl border border-slate-150">
-                                    <h4 className="text-xs font-bold text-slate-800 mb-2 border-b border-slate-100 pb-1">Checklist Kelengkapan Modul</h4>
+                                    <h4 className="text-xs font-bold text-slate-800 mb-2 border-b border-slate-100 pb-1">{ui("Checklist Kelengkapan Modul")}</h4>
                                     <div className="space-y-1.5">
                                         {[
                                             { key: 'cp', label: 'Capaian Pembelajaran (CP)' },
@@ -1646,7 +1597,7 @@ export default function App() {
                                 {/* Warnings & Nomenklatur Checker */}
                                 <div className="p-4 bg-red-50/50 rounded-2xl border border-red-100">
                                     <div className="flex justify-between items-center mb-2">
-                                        <h4 className="text-xs font-bold text-red-800">Temuan & Nomenklatur</h4>
+                                        <h4 className="text-xs font-bold text-red-800">{ui("Temuan & Nomenklatur")}</h4>
                                         {analysis.warnings?.some((w: any) => w.type === 'regulasi') && (
                                             <button 
                                                 onClick={runRegulatoryAutoFix}
@@ -1666,14 +1617,14 @@ export default function App() {
                                             ))}
                                         </ul>
                                     ) : (
-                                        <p className="text-xs text-emerald-700 font-semibold">Semua istilah, konsistensi, dan bahasa dalam modul telah sesuai standar!</p>
+                                        <p className="text-xs text-emerald-700 font-semibold">No additional terminology findings are available. Review against your chosen curriculum.</p>
                                     )}
                                 </div>
 
                                 {/* Recommendations */}
                                 {analysis.recommendations && (
                                     <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
-                                        <h4 className="text-xs font-bold text-blue-800 mb-2">Rekomendasi Perbaikan</h4>
+                                        <h4 className="text-xs font-bold text-blue-800 mb-2">{ui("Rekomendasi Perbaikan")}</h4>
                                         <ul className="list-disc pl-4 space-y-1.5 text-xs text-slate-755">
                                             {analysis.recommendations.map((rec: string, rIdx: number) => (
                                                 <li key={rIdx}>{rec}</li>
@@ -1683,14 +1634,14 @@ export default function App() {
                                 )}
                             </div>
                         ) : (
-                            <p className="text-xs text-slate-400 italic">Jalankan AI Audit untuk mendeteksi skor kelayakan modul Anda.</p>
+                            <p className="text-xs text-slate-400 italic">Check structural completeness locally. This does not validate curriculum or lesson quality.</p>
                         )}
                     </div>
                 );
             case 'design':
                 return (
                     <div className="space-y-4">
-                        <h3 className="text-sm font-bold text-slate-800">Desain & Kustomisasi</h3>
+                        <h3 className="text-sm font-bold text-slate-800">{ui("Desain & Kustomisasi")}</h3>
                         <p className="text-[11px] text-slate-500">Sesuaikan tipografi, tata letak, dan visual dokumen Anda.</p>
                         
                         <div className="space-y-3.5">
@@ -1792,7 +1743,7 @@ export default function App() {
             case 'school':
                 return (
                     <div className="space-y-4 max-h-[65vh] overflow-y-auto custom-scrollbar pr-1">
-                        <h3 className="text-sm font-bold text-slate-800">Profil Sekolah & Riwayat Versi</h3>
+                        <h3 className="text-sm font-bold text-slate-800">{ui("Profil Sekolah & Riwayat Versi")}</h3>
                         
                         {/* School identity form */}
                         <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-150 space-y-2.5">
@@ -1932,23 +1883,23 @@ export default function App() {
             {loading ? (
                 <div className="text-center py-16">
                     <div className="loader mx-auto border-4 border-slate-100 border-t-emerald-600"></div>
-                    <p className="mt-5 text-slate-750 font-bold text-lg">Kecerdasan AI sedang merangkai Modul Ajar lengkap...</p>
+                    <p className="mt-5 text-slate-750 font-bold text-lg">Creating your local lesson draft...</p>
                     <p className="text-emerald-650 font-extrabold text-4xl mt-2">{progress}%</p>
-                    <p className="text-slate-400 text-xs mt-1">Langkah ini mem-parsing CP dan mematangkan langkah Deep Learning.</p>
+                    <p className="text-slate-400 text-xs mt-1">Preparing an editable template from the details you supplied.</p>
                     <div className="mt-5 inline-block bg-red-50 border border-red-100 px-4 py-2.5 rounded-xl">
                         <p className="text-red-600 text-xs font-bold animate-pulse">
-                            Mohon tidak memuat ulang halaman saat AI merakit Lampiran dan LKPD lengkap.
+                            Worksheets and rubrics are drafted locally. Review all sections before use.
                         </p>
                     </div>
                 </div>
             ) : error ? (
                 <div className="text-center py-16">
                     <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-4 animate-bounce"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                    <h3 className="text-xl font-bold text-red-600">Gagal Menghubungkan ke Gemini</h3>
+                    <h3 className="text-xl font-bold text-red-600">Unable to create the local draft</h3>
                     <p className="text-slate-500 mt-2 mb-6 max-w-lg mx-auto text-sm">{error}</p>
                     <div className="flex justify-center space-x-3">
-                        <button onClick={handleBack} className="bg-slate-100 text-slate-700 px-6 py-2.5 rounded-xl font-bold hover:bg-slate-200">Kembali</button>
-                        <button onClick={generate} className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-emerald-500">Coba Lagi</button>
+                        <button onClick={handleBack} className="bg-slate-100 text-slate-700 px-6 py-2.5 rounded-xl font-bold hover:bg-slate-200">{ui("Kembali")}</button>
+                        <button onClick={generate} className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-emerald-500">{ui("Coba Lagi")}</button>
                     </div>
                 </div>
             ) : (
@@ -1965,9 +1916,7 @@ export default function App() {
                                             ? 'bg-white dark:bg-slate-850 text-emerald-600 dark:text-emerald-400 shadow-sm' 
                                             : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                                     }`}
-                                >
-                                    Struktur
-                                </button>
+                                >{ui("Struktur")}</button>
                                 <button 
                                     onClick={() => setActiveTab('copilot')}
                                     className={`py-1.5 rounded-lg text-center transition-all duration-250 ${
@@ -1975,9 +1924,7 @@ export default function App() {
                                             ? 'bg-white dark:bg-slate-850 text-emerald-600 dark:text-emerald-400 shadow-sm' 
                                             : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                                     }`}
-                                >
-                                    Copilot
-                                </button>
+                                >{ui("Copilot")}</button>
                                 <button 
                                     onClick={() => setActiveTab('checker')}
                                     className={`py-1.5 rounded-lg text-center transition-all duration-250 ${
@@ -1985,9 +1932,7 @@ export default function App() {
                                             ? 'bg-white dark:bg-slate-850 text-emerald-600 dark:text-emerald-400 shadow-sm' 
                                             : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                                     }`}
-                                >
-                                    Audit
-                                </button>
+                                >{ui("Audit")}</button>
                                 <button 
                                     onClick={() => setActiveTab('design')}
                                     className={`py-1.5 rounded-lg text-center transition-all duration-250 ${
@@ -1995,9 +1940,7 @@ export default function App() {
                                             ? 'bg-white dark:bg-slate-850 text-emerald-600 dark:text-emerald-400 shadow-sm' 
                                             : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                                     }`}
-                                >
-                                    Desain
-                                </button>
+                                >{ui("Desain")}</button>
                                 <button 
                                     onClick={() => setActiveTab('school')}
                                     className={`py-1.5 rounded-lg text-center transition-all duration-250 ${
@@ -2005,9 +1948,7 @@ export default function App() {
                                             ? 'bg-white dark:bg-slate-850 text-emerald-600 dark:text-emerald-400 shadow-sm' 
                                             : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                                     }`}
-                                >
-                                    Profil
-                                </button>
+                                >{ui("Profil")}</button>
                             </div>
 
                             {/* Render Tab Contents */}
@@ -2028,15 +1969,11 @@ export default function App() {
                                     <button 
                                         onClick={() => setIsEditingBlock(false)} 
                                         className="text-xs bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 font-bold hover:bg-slate-200"
-                                    >
-                                        Batal
-                                    </button>
+                                    >{ui("Batal")}</button>
                                     <button 
                                         onClick={saveBlockEdit} 
                                         className="text-xs bg-emerald-600 text-white px-4 py-1.5 rounded-lg font-bold hover:bg-emerald-500"
-                                    >
-                                        Simpan Perubahan
-                                    </button>
+                                    >{ui("Simpan Perubahan")}</button>
                                 </div>
                             </div>
                         ) : null}
@@ -2045,20 +1982,20 @@ export default function App() {
                         <div className="flex flex-wrap gap-3 justify-between items-center border-b border-slate-100 pb-3 mb-5">
                             <div className="flex items-center space-x-2">
                                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                                <span className="text-xs font-bold text-slate-600">Pratinjau Modul Aktif</span>
+                                <span className="text-xs font-bold text-slate-600">{ui("Pratinjau Modul Aktif")}</span>
                             </div>
                             <div className="flex flex-wrap gap-2">
                                 <button 
                                     onClick={handleDocumentPrint}
                                     className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-xl font-bold text-xs hover:bg-slate-200 flex items-center space-x-1"
                                 >
-                                    <span>🖨️ Cetak / PDF</span>
+                                    <span>{ui("🖨️ Cetak / PDF")}</span>
                                 </button>
                                 <button 
                                     onClick={handleDOCXExport}
                                     className="bg-emerald-600 text-white px-3 py-1.5 rounded-xl font-bold text-xs hover:bg-emerald-500 flex items-center space-x-1 shadow-sm"
                                 >
-                                    <span>💾 Word (.docx)</span>
+                                    <span>{ui("💾 Word (.docx)")}</span>
                                 </button>
                                 <button
                                     onClick={() => {
@@ -2124,13 +2061,11 @@ export default function App() {
                                         ['--primary-color' as any]: documentDesign.primaryColor,
                                         ['--secondary-color' as any]: documentDesign.secondaryColor
                                     }}
-                                    title="Klik ganda untuk mengedit langsung"
+                                    title={ui("Klik ganda untuk mengedit langsung")}
                                 >
                                     <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-2">
                                         <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide margin-0">{activeBlock.title}</h3>
-                                        <span className="text-[10px] text-slate-400 font-semibold italic flex items-center">
-                                            ✏️ Klik untuk Mengedit
-                                        </span>
+                                        <span className="text-[10px] text-slate-400 font-semibold italic flex items-center">{ui("✏️ Klik untuk Mengedit")}</span>
                                     </div>
                                     <div>
                                         <div 
@@ -2162,24 +2097,23 @@ export default function App() {
                 {/* Header */}
                 <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 bg-white/40 dark:bg-slate-900/40">
                     <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 md:gap-2">
-                        <div className="flex items-start space-x-3.5">
-                            <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-2.5 rounded-2xl flex-shrink-0 mt-1 shadow-lg shadow-emerald-500/10 text-white">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>
-                            </div>
+                        <div className="flex items-start gap-3.5">
+                            <div className="flex-shrink-0 mt-1"><img src={lessonLogo} alt="" width="44" height="44" /></div>
                             <div>
                                 <h1 className="text-lg sm:text-xl font-heading font-extrabold text-slate-800 dark:text-white flex flex-wrap items-center gap-2">
-                                    Aplikasi Modul Ajar - APMA
+                                    Irsyads LessonCraft
                                     <span className="text-[9px] bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-450 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-900/40 font-bold tracking-wide shadow-sm">v1.1</span>
                                 </h1>
-                                <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">Penyusun Modul Berbasis Deep Learning & Regulasi Terkini Kemendikdasmen</p>
+                                <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">{ui("Build editable lesson drafts with local templates")}</p>
                             </div>
                         </div>
-                        <div className="flex items-center space-x-3 self-end md:self-auto">
+                        <div className="flex flex-wrap items-center justify-end gap-2 self-end md:self-auto">
+                            <label className="flex items-center gap-2 text-xs"><span>{language==='ar'?'اللغة':language==='id'?'Bahasa':'Language'}</span><select aria-label={language==='ar'?'اللغة':language==='id'?'Bahasa':'Language'} value={language} onChange={event=>chooseLanguage(event.target.value as InterfaceLanguage)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-2 text-slate-800 dark:bg-slate-800 dark:text-white"><option value="en">English</option><option value="id">Indonesia</option><option value="ar">العربية</option></select></label>
                             {/* Dark Mode Switch */}
                             <button 
                                 onClick={() => setDarkMode(!darkMode)}
-                                className="flex-shrink-0 flex items-center justify-center w-8.5 h-8.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                                title={darkMode ? "Aktifkan Mode Terang" : "Aktifkan Mode Gelap"}
+                                className="flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                title={darkMode ? ui("Aktifkan Mode Terang") : ui("Aktifkan Mode Gelap")}
                             >
                                 {darkMode ? (
                                     <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -2187,24 +2121,11 @@ export default function App() {
                                     <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
                                 )}
                             </button>
-                            <button 
-                                onClick={() => setShowApiKeyInput(prev => !prev)} 
-                                className={`flex items-center space-x-1.5 text-xs font-bold p-1.5 px-2.5 rounded-xl transition-colors ${
-                                    showApiKeyInput || !hasApiKey 
-                                        ? 'text-amber-700 hover:text-amber-800 bg-amber-50 dark:bg-amber-950/20 dark:text-amber-450 border border-amber-200/50 dark:border-amber-900/30' 
-                                        : 'text-slate-600 dark:text-slate-350 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-                                }`}
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
-                                <span>API Key</span>
-                            </button>
                             <button onClick={() => setShowHelp(true)} className="flex-shrink-0 flex items-center space-x-1 text-xs text-emerald-600 dark:text-emerald-400 hover:underline font-bold p-1.5 px-2.5 rounded-xl hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 transition-colors">
-                                <span>Panduan</span>
+                                <span>{ui("Panduan")}</span>
                             </button>
                             {step === 3 && (
-                                <button onClick={reset} className="text-xs bg-slate-100 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-bold px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 transition-colors">
-                                    Mulai Baru
-                                </button>
+                                <button onClick={reset} className="text-xs bg-slate-100 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-bold px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 transition-colors">{ui("Mulai Baru")}</button>
                             )}
                         </div>
                     </div>
@@ -2228,9 +2149,7 @@ export default function App() {
                              }`}>
                                 {step > 1 ? '✓' : '1'}
                             </div>
-                            <span className={`text-[10px] font-bold mt-1 transition-all duration-300 ${step >= 1 ? 'text-emerald-700 dark:text-emerald-450' : 'text-slate-400 dark:text-slate-600'}`}>
-                                Identitas Dasar
-                            </span>
+                            <span className={`text-[10px] font-bold mt-1 transition-all duration-300 ${step >= 1 ? 'text-emerald-700 dark:text-emerald-450' : 'text-slate-400 dark:text-slate-600'}`}>{ui("Identitas Dasar")}</span>
                         </div>
 
                         {/* Step 2 */}
@@ -2242,9 +2161,7 @@ export default function App() {
                              }`}>
                                 {step > 2 ? '✓' : '2'}
                             </div>
-                            <span className={`text-[10px] font-bold mt-1 transition-all duration-300 ${step >= 2 ? 'text-emerald-700 dark:text-emerald-450' : 'text-slate-400 dark:text-slate-600'}`}>
-                                Detail Pembelajaran
-                            </span>
+                            <span className={`text-[10px] font-bold mt-1 transition-all duration-300 ${step >= 2 ? 'text-emerald-700 dark:text-emerald-450' : 'text-slate-400 dark:text-slate-600'}`}>{ui("Detail Pembelajaran")}</span>
                         </div>
 
                         {/* Step 3 */}
@@ -2256,73 +2173,14 @@ export default function App() {
                              }`}>
                                 3
                             </div>
-                            <span className={`text-[10px] font-bold mt-1 transition-all duration-300 ${step >= 3 ? 'text-emerald-700 dark:text-emerald-450' : 'text-slate-400 dark:text-slate-600'}`}>
-                                Workspace Editor
-                            </span>
+                            <span className={`text-[10px] font-bold mt-1 transition-all duration-300 ${step >= 3 ? 'text-emerald-700 dark:text-emerald-450' : 'text-slate-400 dark:text-slate-600'}`}>{ui("Workspace Editor")}</span>
                         </div>
                     </div>
                 </div>
 
                 {/* Content Area */}
                 <div className="p-5 sm:p-7">
-                    {/* API Key Configuration Card */}
-                    {(showApiKeyInput || !hasApiKey) && (
-                        <div className="mb-6 p-4.5 bg-gradient-to-r from-amber-50/70 to-orange-50/70 border border-amber-200/80 rounded-2xl animate-fade-in shadow-sm">
-                            <h4 className="font-bold text-amber-800 text-xs sm:text-sm flex items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
-                                <span>Konfigurasi API Key Gemini</span>
-                            </h4>
-                            <p className="text-[11px] text-amber-700 mt-1 mb-3">
-                                {!hasApiKey 
-                                    ? "API Key tidak terdeteksi. Silakan masukkan API Key Gemini Anda (didapatkan gratis di Google AI Studio) untuk mulai menyusun Modul Ajar."
-                                    : "API Key terdeteksi aktif dari environment. Anda bisa menimpanya dengan memasukkan API Key kustom di bawah ini jika diperlukan:"
-                                }
-                            </p>
-                            <div className="flex flex-col sm:flex-row gap-2">
-                                <input 
-                                    type="password"
-                                    placeholder={hasApiKey ? "••••••••••••••••••••••••••••••••••••" : "Masukkan API Key Gemini (AIzaSy...)"}
-                                    className="flex-1 p-2.5 text-xs rounded-xl border border-amber-250 outline-none bg-white text-slate-800 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10"
-                                    value={customApiKey}
-                                    onChange={e => setCustomApiKey(e.target.value)}
-                                />
-                                <div className="flex gap-2">
-                                    <button 
-                                        onClick={() => {
-                                            if (customApiKey.trim()) {
-                                                localStorage.setItem('GEMINI_API_KEY', customApiKey.trim());
-                                                setHasApiKey(true);
-                                                setShowApiKeyInput(false);
-                                                alert('API Key berhasil disimpan!');
-                                            } else {
-                                                localStorage.removeItem('GEMINI_API_KEY');
-                                                setHasApiKey(!!getApiKey());
-                                                setShowApiKeyInput(false);
-                                                alert('API Key kustom dihapus (kembali menggunakan key bawaan).');
-                                            }
-                                        }}
-                                        className="flex-1 sm:flex-none bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
-                                    >
-                                        Simpan
-                                    </button>
-                                    {localStorage.getItem('GEMINI_API_KEY') && (
-                                        <button 
-                                            onClick={() => {
-                                                localStorage.removeItem('GEMINI_API_KEY');
-                                                setCustomApiKey('');
-                                                setHasApiKey(!!getApiKey());
-                                                setShowApiKeyInput(false);
-                                                alert('API Key kustom berhasil dihapus.');
-                                            }}
-                                            className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold px-3 py-2.5 rounded-xl transition-colors"
-                                        >
-                                            Hapus
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                    <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">{ui("Local templates · no API key or cloud AI. Review curriculum, goals and assessment before use. Images are not analysed.")}</p>
 
                     <div className="relative min-h-[300px]">
                         {step === 1 && renderStep1()}
@@ -2336,20 +2194,20 @@ export default function App() {
                                 onClick={handleBack} 
                                 className={`bg-slate-100 hover:bg-slate-200 text-slate-700 px-6 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center space-x-2 transition-all duration-200 ${step === 1 ? 'invisible' : ''}`}
                             >
-                                <span>Kembali</span>
+                                <span>{ui("Kembali")}</span>
                             </button>
                             <button 
                                 onClick={handleNext} 
                                 className="btn-premium-action bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center space-x-2 shadow-sm hover:bg-emerald-500"
                             >
-                                <span>{step === 2 ? 'Rakit Modul Ajar (AI)' : 'Selanjutnya'}</span>
+                                <span>{step === 2 ? ui("Create local draft") : ui("Selanjutnya")}</span>
                             </button>
                         </div>
                     )}
                 </div>
                 
                 <div className="text-center p-3 bg-slate-50/50 border-t border-slate-100 text-[10px] text-slate-400">
-                    &copy; 2026 IRSYAD MSK. Version 1.0
+                    &copy; 2026 Muhammad Irsyad Sirojul Khoeir. Version 1.1
                 </div>
             </div>
 
@@ -2405,7 +2263,7 @@ export default function App() {
                             </div>
                         </div>
                         <div className="p-4 bg-slate-50 border-t border-slate-150 text-right rounded-b-3xl">
-                            <button onClick={() => setShowHelp(false)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-6 py-2 rounded-xl shadow-md">Mengerti</button>
+                            <button onClick={() => setShowHelp(false)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-6 py-2 rounded-xl shadow-md">{ui("Mengerti")}</button>
                         </div>
                     </div>
                 </div>
@@ -2449,7 +2307,7 @@ export default function App() {
                             </div>
                         </div>
                         <div className="p-4 bg-slate-50 border-t border-slate-150 text-right rounded-b-3xl">
-                            <button onClick={() => setShowCompareModal(false)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-6 py-2 rounded-xl shadow-md">Tutup</button>
+                            <button onClick={() => setShowCompareModal(false)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-6 py-2 rounded-xl shadow-md">{ui("Tutup")}</button>
                         </div>
                     </div>
                 </div>
