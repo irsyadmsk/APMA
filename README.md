@@ -24,6 +24,6 @@ The canonical local template is packages/isi/src/lesson-template.ts in the Irsya
 
 Dev server: port 3000 (`vite.config.ts`, `base: './'`).
 
-**Keadaan saat ini (27 Okt 2026):** branch `codex/approved-service-brand-20261010`, perubahan lokal belum di-commit. `services/geminiService.ts` sudah dihapus (AI Gemini dicabut). `.env.example` masih menyebut `GEMINI_API_KEY`; itu sisa lama dan tidak dibaca kode. `.env.local` berisi nilai lokal, jangan dibaca atau di-commit. `metadata.json` masih berbunyi "menggunakan AI"; deskripsi sebenarnya: templat lokal.
+**Keadaan saat ini (27 Okt 2026):** branch `main`. `services/geminiService.ts` sudah dihapus (AI Gemini dicabut; varian "kunci Gemini milik pengguna" dari commit 20 Okt `aeb05b8` tidak dipakai). `.env.example` masih menyebut `GEMINI_API_KEY`; itu sisa lama dan tidak dibaca kode. `.env.local` berisi nilai lokal, jangan dibaca atau di-commit. `metadata.json` masih berbunyi "menggunakan AI"; deskripsi sebenarnya: templat lokal.
 
 **Jangan:** menambah panggilan AI/API berbayar, menambah backend, atau mengubah alamat layanan tanpa permintaan pemilik.
