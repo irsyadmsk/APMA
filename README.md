@@ -1,5 +1,16 @@
 # Irsyads LessonCraft
 
+> **⚠️ ATURAN KERJA WAJIB untuk AI dan pengembang (pemilik, 27 Okt 2026)**
+>
+> 1. **Satu versi, satu branch `main`.** Perbaikan dan pembaruan langsung ke kode. Dilarang membuat branch, worktree, salinan folder, atau berkas versi (`-v2`, `-baru`, `-lama`, `-backup`, `copy`) di repo ini.
+> 2. **Ragu atau fitur baru yang perlu uji coba →** kerjakan di `C:\Users\T6N0CV02S35823C\Github\Folder UJI\<repo>-<fitur>`, bukan di sini.
+> 3. **Uji berhasil →** terapkan ke repo ini dengan mengganti kode lama, jalankan tes, commit ke `main`, lalu hapus folder ujinya. **Uji gagal →** hapus folder ujinya.
+> 4. **Jangan membuat repo bengkak:** screenshot, log, hasil build, arsip, dan berkas sementara tidak disimpan di repo ini.
+> 5. Rilis/deploy tetap butuh konfirmasi pemilik; commit yang belum boleh tayang memakai awalan `[skip ci] [CF-Pages-Skip]`.
+>
+> Rincian: `README.md` di folder `Github` dan `Folder UJI\README.md`.
+
+
 Editable teaching documents generated from local templates. No cloud AI, API key or usage-based generation charge. Author: Muhammad Irsyad Sirojul Khoeir.
 
 Run locally with Node.js: install dependencies with npm ci, then npm run dev. Validate with npx tsc --noEmit and npm run build.
