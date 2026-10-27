@@ -1,4 +1,5 @@
 import lessonLogo from './favicon.svg';
+import { LogoPena } from './LogoPena';
 import {useLessonInterface,chooseLanguage,type InterfaceLanguage} from './services/interface';
 import React, { useState, useEffect, useRef } from 'react';
 import { lessonMinutes } from './services/lesson-template';
@@ -2206,8 +2207,9 @@ export default function App() {
                     )}
                 </div>
                 
-                <div className="text-center p-3 bg-slate-50/50 border-t border-slate-100 text-[10px] text-slate-400">
-                    &copy; 2026 Muhammad Irsyad Sirojul Khoeir. Version 1.1
+                <div className="flex items-center justify-center gap-2 p-3 bg-slate-50/50 border-t border-slate-100 text-[10px] text-slate-400">
+                    <a href="https://irsyads.com" aria-label="irsyads.com" className="text-slate-700 dark:text-slate-200"><LogoPena height={28} /></a>
+                    <span>&copy; 2026 Muhammad Irsyad Sirojul Khoeir. Version 1.1</span>
                 </div>
             </div>
 
